@@ -5,31 +5,12 @@ function stokes_flow_sphere_BEM()
     U0 = [0, 0, 1];    % Constant velocity of the sphere [Ux, Uy, Uz]
     N = 1000;          % Number of surface elements (increased for accuracy)
     mu = 1.0;          % Dynamic viscosity of the fluid
-    delta = R / 5;  % Small offset to avoid singularity
+    delta = R / 10;  % Small offset to avoid singularity
     epsilon = 1e-8;    % Regularization term for diagonal
 
     % Discretize the sphere surface
-    [vertices] = generateSphereMesh(R, N);
+    [vertices,faces] = generateSphereMesh(R, N);
     
-   [vertices, ~, ic] = unique(vertices, 'rows', 'stable');
- %  faces = delaunay(x(:), y(:), z(:)); % Triangulate the surface
-    
-   % node_normals = computeNodeNormals(vertices, faces);
-    
-    % Plot the mesh
-% figure;
-% trisurf(faces, vertices(:, 1), vertices(:, 2), vertices(:, 3));
-% hold on;
-% 
-% % Plot the normal vectors
-% quiver3(vertices(:, 1), vertices(:, 2), vertices(:, 3), ...
-%         node_normals(:, 1), node_normals(:, 2), node_normals(:, 3), 'r');
-% title('Mesh with Node Normals');
-% xlabel('X');
-% ylabel('Y');
-% zlabel('Z');
-% axis equal;
-% hold off;
     % Number of nodes
     numNodes = size(vertices, 1);
 
@@ -69,14 +50,6 @@ tic
     % Solve for the force distribution using preconditioned system
     f = A\ b;
    toc
-   % Move data to GPU
-% A_gpu = gpuArray(A);
-% b_gpu = gpuArray(b);
-% 
-% % Solve using cuSOLVER (LU factorization)
-% tic;
-% x_gpu = A_gpu \ b_gpu; % MATLAB's backslash operator uses cuSOLVER on GPU
-% toc;
    
     % Check for NaNs or Infs in the solution
     if any(isnan(f)) || any(isinf(f))
@@ -108,49 +81,70 @@ tic
     keyboard
 end
 
-function [vertices] = generateSphereMesh(R, N)
+function [vertices,faces] = generateSphereMesh(R, N)
     % Generate a spherical mesh using MATLAB's built-in function
     [x, y, z] = sphere(round(sqrt(N/2))); % Adjust resolution to get ~N elements
     
      vertices = R * [x(:), y(:), z(:)];
-     [vertices, ~, ~] = unique(vertices, 'rows', 'stable');
+    %  [vertices, ~, ~] = unique(vertices, 'rows', 'stable');
+      [m, ~] = size(x);
+    faces = [];
+
+    % Build all faces first (same as original)
+    % Quadrilateral faces (split into triangles)
+    for i = 1:m-1
+        for j = 1:m-1
+            v1 = (i-1)*m + j;
+            v2 = (i-1)*m + j+1;
+            v3 = i*m + j+1;
+            v4 = i*m + j;
+            faces = [faces; v1, v2, v3; v1, v3, v4];
+        end
+    end
+
+    % Pole triangles
+    northPole = 1;
+    for j = 1:m-1
+        v2 = 1 + j;
+        v3 = 1 + j + 1;
+        faces = [faces; northPole, v2, v3];
+    end
+
+    southPole = m*m;
+    for j = 1:m-1
+        v2 = (m-1)*m + j;
+        v3 = (m-1)*m + j + 1;
+        faces = [faces; southPole, v3, v2];
+    end
+
+    % --- Critical Fix: Remove duplicate vertices and update faces ---
+    [vertices, ~, ic] = unique(vertices, 'rows', 'stable');
+    
+    % Update face indices using the mapping from unique()
+    faces = ic(faces);
+    
+    % Optional: Verify no degenerate faces remain
+    validFaces = all(diff(faces, 1, 2) ~= 0, 2); % Check for v1 ¡Ù v2 ¡Ù v3
+    faces = faces(validFaces, :);
     %  faces = delaunay(vertices(:,1), vertices(:,2), vertices(:,3)); % Triangulate the surface
 end
 
-function node_normals = computeNodeNormals(vertices, faces)
-    % vertices: N x 3 matrix of vertex coordinates
-    % faces: M x 3 matrix of face connectivity (triangular faces)
-    % node_normals: N x 3 matrix of normal vectors at each node
-
-    % Initialize node normals
-    num_nodes = size(vertices, 1);
-    node_normals = zeros(num_nodes, 3);
-
-    % Compute face normals
-    face_normals = zeros(size(faces, 1), 3);
-    for i = 1:size(faces, 1)
-        % Get the vertices of the current face
-        v1 = vertices(faces(i, 1), :);
-        v2 = vertices(faces(i, 2), :);
-        v3 = vertices(faces(i, 3), :);
-
-        % Compute edge vectors
-        edge1 = v2 - v1;
-        edge2 = v3 - v1;
-
-        % Compute face normal using cross product
-        face_normals(i, :) = cross(edge1, edge2);
-    end
-
-    % Average face normals at each node
-    for i = 1:num_nodes
-        % Find all faces that share this node
-        [shared_faces, ~] = find(faces == i);
-
-        % Average the normals of the shared faces
-        node_normals(i, :) = mean(face_normals(shared_faces, :), 1);
-
-        % Normalize the normal vector
-        node_normals(i, :) = node_normals(i, :) / norm(node_normals(i, :));
-    end
+function [points, weights] = get_triangle_quadrature()
+% 7-point Gaussian quadrature for triangles
+points = [...
+    0.1012865073235, 0.1012865073235; ...
+    0.7974269853531, 0.1012865073235; ...
+    0.1012865073235, 0.7974269853531; ...
+    0.4701420641051, 0.0597158717898; ...
+    0.4701420641051, 0.4701420641051; ...
+    0.0597158717898, 0.4701420641051; ...
+    0.3333333333333, 0.3333333333333];
+weights = [...
+    0.1259391805448; ...
+    0.1259391805448; ...
+    0.1259391805448; ...
+    0.1323941527885; ...
+    0.1323941527885; ...
+    0.1323941527885; ...
+    0.2250000000000];
 end
