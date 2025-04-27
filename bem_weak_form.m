@@ -5,11 +5,20 @@ function stokes_flow_sphere_BEM()
     U0 = [0, 0, 1];    % Constant velocity of the sphere [Ux, Uy, Uz]
     N = 1000;          % Number of surface elements (increased for accuracy)
     mu = 1.0;          % Dynamic viscosity of the fluid
-    delta = R / 10000;  % Small offset to avoid singularity
+  %   delta = R / 10000;  % Small offset to avoid singularity
     epsilon = 1e-8;    % Regularization term for diagonal
 
     % Discretize the sphere surface
     [vertices,faces] = generateSphereMesh(R, N);
+    
+    % Plot the triangular mesh
+    figure;
+    trisurf(faces, vertices(:,1), vertices(:,2), vertices(:,3), 'FaceAlpha', 0.5, 'EdgeColor', 'k');
+    title('Sphere Triangular Mesh');
+    xlabel('X');
+    ylabel('Y');
+    zlabel('Z');
+    axis equal;
     
     % Number of nodes
     numNodes = size(vertices, 1);
@@ -21,6 +30,9 @@ function stokes_flow_sphere_BEM()
     [quad_points, quad_weights] = get_triangle_quadrature();
     num_quads = length(quad_weights);
 
+    
+    % total area
+    total_area=0;
     % Loop over triangle faces (observation domain)
     for tri = 1:size(faces,1)
         nodes = faces(tri, :);
@@ -30,6 +42,7 @@ function stokes_flow_sphere_BEM()
 
         % Triangle area and edge vectors
         area = 0.5 * norm(cross(v2 - v1, v3 - v1));
+        
 
         % Loop over each quadrature point
         for q = 1:num_quads
@@ -44,7 +57,7 @@ function stokes_flow_sphere_BEM()
 
             % Evaluate contribution of all nodal forces to this quadrature point
             for src_node = 1:numNodes
-                src_point = vertices(src_node,:) * (1 - delta/R);
+                src_point = vertices(src_node,:) ;
                 r_vec = obs_point - src_point;
                 r = norm(r_vec);
 
@@ -68,6 +81,7 @@ function stokes_flow_sphere_BEM()
                 B(idx) = B(idx) + shape(k) * U0' * quad_weights(q) * area;
             end
         end
+    total_area=total_area+area;   
     end
 
     % Regularize diagonal blocks
@@ -111,6 +125,7 @@ function stokes_flow_sphere_BEM()
     keyboard
 end
 
+
 function [vertices,faces] = generateSphereMesh(R, N)
     % Generate a spherical mesh using MATLAB's built-in function
     [x, y, z] = sphere(round(sqrt(N/2))); % Adjust resolution to get ~N elements
@@ -133,19 +148,19 @@ function [vertices,faces] = generateSphereMesh(R, N)
     end
 
     % Pole triangles
-    northPole = 1;
-    for j = 1:m-1
-        v2 = 1 + j;
-        v3 = 1 + j + 1;
-        faces = [faces; northPole, v2, v3];
-    end
+%     northPole = 1;
+%     for j = 1:m-1
+%         v2 = 1 + j;
+%         v3 = 1 + j + 1;
+%         faces = [faces; northPole, v2, v3];
+%     end
 
-    southPole = m*m;
-    for j = 1:m-1
-        v2 = (m-1)*m + j;
-        v3 = (m-1)*m + j + 1;
-        faces = [faces; southPole, v3, v2];
-    end
+%     southPole = m*m;
+%     for j = 1:m-1
+%         v2 = (m-1)*m + j;
+%         v3 = (m-1)*m + j + 1;
+%         faces = [faces; southPole, v3, v2];
+%     end
 
     % --- Critical Fix: Remove duplicate vertices and update faces ---
     [vertices, ~, ic] = unique(vertices, 'rows', 'stable');
