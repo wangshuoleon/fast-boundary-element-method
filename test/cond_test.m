@@ -13,7 +13,7 @@ function stokes_flow_sphere_BEM()
     % generation of second sphere
 
     faces=[faces;faces+size(vertices,1)];
-    theta=0;
+    theta=pi/2;
     phi=0;
      R_phi = [cos(phi), -sin(phi), 0; 
              sin(phi), cos(phi), 0; 
@@ -127,6 +127,7 @@ function stokes_flow_sphere_BEM()
     keyboard
 end
 
+
 function [vertices,faces] = generateSphereMesh(R, N)
     % Generate a spherical mesh using MATLAB's built-in function
     [x, y, z] = sphere(round(sqrt(N/2))); % Adjust resolution to get ~N elements
@@ -148,20 +149,6 @@ function [vertices,faces] = generateSphereMesh(R, N)
         end
     end
 
-    % Pole triangles
-    northPole = 1;
-    for j = 1:m-1
-        v2 = 1 + j;
-        v3 = 1 + j + 1;
-        faces = [faces; northPole, v2, v3];
-    end
-
-    southPole = m*m;
-    for j = 1:m-1
-        v2 = (m-1)*m + j;
-        v3 = (m-1)*m + j + 1;
-        faces = [faces; southPole, v3, v2];
-    end
 
     % --- Critical Fix: Remove duplicate vertices and update faces ---
     [vertices, ~, ic] = unique(vertices, 'rows', 'stable');
@@ -176,21 +163,15 @@ function [vertices,faces] = generateSphereMesh(R, N)
 end
 
 function [points, weights] = get_triangle_quadrature()
-% 7-point Gaussian quadrature for triangles
+% 4-point Gaussian quadrature for triangles (degree of precision = 3)
 points = [...
-    0.1012865073235, 0.1012865073235; ...
-    0.7974269853531, 0.1012865073235; ...
-    0.1012865073235, 0.7974269853531; ...
-    0.4701420641051, 0.0597158717898; ...
-    0.4701420641051, 0.4701420641051; ...
-    0.0597158717898, 0.4701420641051; ...
-    0.3333333333333, 0.3333333333333];
+    1/3, 1/3;          % Center point
+    0.6, 0.2;          % Vertex-weighted points
+    0.2, 0.6;
+    0.2, 0.2];
 weights = [...
-    0.1259391805448; ...
-    0.1259391805448; ...
-    0.1259391805448; ...
-    0.1323941527885; ...
-    0.1323941527885; ...
-    0.1323941527885; ...
-    0.2250000000000];
+    -27/48;            % Center weight
+    25/48;             % Vertex weights
+    25/48;
+    25/48];
 end

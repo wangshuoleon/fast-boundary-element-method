@@ -6,7 +6,7 @@ function stokes_flow_sphere_BEM()
     N = 1000;          % Number of surface elements (increased for accuracy)
     mu = 1.0;          % Dynamic viscosity of the fluid
   %   delta = R / 10000;  % Small offset to avoid singularity
-    epsilon = 1e-8;    % Regularization term for diagonal
+    % epsilon = 1e-8;    % Regularization term for diagonal
 
     % Discretize the sphere surface
     [vertices,faces] = generateSphereMesh(R, N);
@@ -85,11 +85,11 @@ function stokes_flow_sphere_BEM()
     end
 
     % Regularize diagonal blocks
-    for i = 1:numNodes
-        idx = (3*i-2):(3*i);
-        A(idx, idx) = A(idx, idx) + epsilon * eye(3);
-    end
-
+%     for i = 1:numNodes
+%         idx = (3*i-2):(3*i);
+%         A(idx, idx) = A(idx, idx) + epsilon * eye(3);
+%     end
+   toc
    tic
     % Solve for the force distribution using preconditioned system
     f = A\ B;
@@ -147,20 +147,6 @@ function [vertices,faces] = generateSphereMesh(R, N)
         end
     end
 
-    % Pole triangles
-%     northPole = 1;
-%     for j = 1:m-1
-%         v2 = 1 + j;
-%         v3 = 1 + j + 1;
-%         faces = [faces; northPole, v2, v3];
-%     end
-
-%     southPole = m*m;
-%     for j = 1:m-1
-%         v2 = (m-1)*m + j;
-%         v3 = (m-1)*m + j + 1;
-%         faces = [faces; southPole, v3, v2];
-%     end
 
     % --- Critical Fix: Remove duplicate vertices and update faces ---
     [vertices, ~, ic] = unique(vertices, 'rows', 'stable');
@@ -175,21 +161,15 @@ function [vertices,faces] = generateSphereMesh(R, N)
 end
 
 function [points, weights] = get_triangle_quadrature()
-% 7-point Gaussian quadrature for triangles
+% 4-point Gaussian quadrature for triangles (degree of precision = 3)
 points = [...
-    0.1012865073235, 0.1012865073235; ...
-    0.7974269853531, 0.1012865073235; ...
-    0.1012865073235, 0.7974269853531; ...
-    0.4701420641051, 0.0597158717898; ...
-    0.4701420641051, 0.4701420641051; ...
-    0.0597158717898, 0.4701420641051; ...
-    0.3333333333333, 0.3333333333333];
+    1/3, 1/3;          % Center point
+    0.6, 0.2;          % Vertex-weighted points
+    0.2, 0.6;
+    0.2, 0.2];
 weights = [...
-    0.1259391805448; ...
-    0.1259391805448; ...
-    0.1259391805448; ...
-    0.1323941527885; ...
-    0.1323941527885; ...
-    0.1323941527885; ...
-    0.2250000000000];
+    -27/48;            % Center weight
+    25/48;             % Vertex weights
+    25/48;
+    25/48];
 end
